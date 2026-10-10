@@ -27,10 +27,10 @@ class AlreadyRunning(Exception):
     """An earlier run is still going."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Watch:
     name: str
-    origin: str
+    origin: str = "MEL"
     destination: str
     depart_from: date
     depart_to: date
@@ -80,7 +80,7 @@ def _watch(raw: dict[str, object], seen: set[str]) -> Watch:
     for key in raw:
         if key not in known:
             raise fail(f"unknown setting '{key}'")
-    for key in ("name", "origin", "destination", "depart_from", "depart_to"):
+    for key in ("name", "destination", "depart_from", "depart_to"):
         if key not in raw:
             raise fail(f"{key} is missing")
     if name in seen:
@@ -89,7 +89,7 @@ def _watch(raw: dict[str, object], seen: set[str]) -> Watch:
         if type(raw[key]) is not date:
             raise fail(f"{key} must be a date like 2027-03-01, without quotes")
     for key in ("origin", "destination"):
-        code = raw[key]
+        code = raw.get(key, "MEL")
         if not (isinstance(code, str) and len(code) == 3 and code.isalpha() and code.isupper()):
             raise fail(f"{key} must be a three-letter airport code like SFO")
     nights = raw.get("nights")
@@ -135,7 +135,7 @@ def _load_config(home: Path) -> tuple[list[Watch], str, str | None]:
     for raw in raw_watches:
         watches.append(_watch(raw, seen))
         seen.add(watches[-1].name)
-    return watches, str(config.get("currency", "USD")), config.get("ntfy_topic")
+    return watches, str(config.get("currency", "AUD")), config.get("ntfy_topic")
 
 
 def _flight(directions: list[Direction]) -> str:

@@ -92,7 +92,7 @@ def test_daily_report_shows_the_cheapest_date_in_the_travel_window(h: Harness):
     report = h.report()
     assert "tokyo" in report
     assert "SFO → NRT" in report
-    assert "512 USD" in report
+    assert "512 AUD" in report
     assert "depart 2027-03-03" in report
     assert "640" not in report
 
@@ -112,7 +112,7 @@ def test_best_dates_are_the_cheapest_across_every_trip_length(h: Harness):
 
     assert [c[3] for c in h.source.calls] == [10, 11, 12]
     report = h.report()
-    assert "790 USD" in report
+    assert "790 AUD" in report
     assert "depart 2027-03-04, return 2027-03-15 (11 nights)" in report
 
 
@@ -131,9 +131,9 @@ def test_a_hit_sends_a_push_and_is_marked_in_the_report(h: Harness):
 
     [(topic, title, body)] = h.pushes
     assert topic == "s3cret-topic"
-    assert "tokyo" in title and "512 USD" in title
+    assert "tokyo" in title and "512 AUD" in title
     assert "depart 2027-03-03" in body
-    assert "HIT (target 600 USD)" in h.report()
+    assert "HIT (target 600 AUD)" in h.report()
 
 
 @pytest.mark.parametrize(
@@ -151,7 +151,7 @@ def test_no_push_without_a_hit_and_a_topic(h: Harness, config: str):
     h.run()
 
     assert h.pushes == []
-    assert "512 USD" in h.report()
+    assert "512 AUD" in h.report()
 
 
 def test_a_standing_hit_pushes_again_only_when_the_price_drops_further(h: Harness):
@@ -161,8 +161,8 @@ def test_a_standing_hit_pushes_again_only_when_the_price_drops_further(h: Harnes
         one_way_at(h, price)
         h.run()
 
-    assert ["512 USD" in t for _, t, _ in h.pushes] == [True, False]
-    assert "490 USD" in h.pushes[1][1]
+    assert ["512 AUD" in t for _, t, _ in h.pushes] == [True, False]
+    assert "490 AUD" in h.pushes[1][1]
 
 
 def test_a_hit_pushes_again_after_the_price_went_back_over_target(h: Harness):
@@ -173,7 +173,7 @@ def test_a_hit_pushes_again_after_the_price_went_back_over_target(h: Harness):
         h.run()
 
     assert len(h.pushes) == 2
-    assert "550 USD" in h.pushes[1][1]
+    assert "550 AUD" in h.pushes[1][1]
 
 
 def test_a_failed_search_is_retried_after_a_pause(h: Harness):
@@ -186,7 +186,7 @@ def test_a_failed_search_is_retried_after_a_pause(h: Harness):
     assert len(h.source.calls) == 3
     assert len(h.sleeps) >= 2
     report = h.report()
-    assert "512 USD" in report
+    assert "512 AUD" in report
     assert "Incomplete" not in report
 
 
@@ -198,7 +198,7 @@ def test_an_incomplete_check_still_reports_and_pushes_what_it_found(h: Harness):
     h.run()
 
     report = h.report()
-    assert "880 USD" in report
+    assert "880 AUD" in report
     assert "Incomplete Check: 1 of 3 searches failed" in report
     assert len(h.pushes) == 1
 
@@ -212,7 +212,7 @@ def test_a_watch_with_no_prices_does_not_stop_the_others(h: Harness):
 
     report = h.report()
     assert "## broken" in report and "No prices found" in report
-    assert "## tokyo" in report and "880 USD" in report
+    assert "## tokyo" in report and "880 AUD" in report
 
 
 def test_an_expired_watch_is_listed_but_not_searched(h: Harness):
@@ -273,7 +273,7 @@ def test_a_failed_flight_lookup_still_reports_dates_price_and_a_link(h: Harness)
 
     h.run()
 
-    assert "512 USD" in h.report()
+    assert "512 AUD" in h.report()
     assert "https://www.google.com/travel/flights?q=" in h.report()
     assert len(h.pushes) == 1
 
@@ -286,8 +286,8 @@ def test_report_shows_the_lowest_price_seen_that_day(h: Harness):
         h.run(datetime(2026, 10, 10, hour, 0))
 
     report = h.report()
-    assert "**512 USD**" in report
-    assert "Lowest today: 480 USD" in report
+    assert "**512 AUD**" in report
+    assert "Lowest today: 480 AUD" in report
 
 
 def test_run_reports_how_many_searches_it_made(h: Harness):
@@ -323,7 +323,7 @@ def test_a_run_refuses_to_start_while_another_is_still_going(h: Harness):
         (ROUND_TRIP.replace("[10, 12]", "[1, 31]"), "tokyo: nights spans 31 Trip Lengths; the most is 30"),
         (ROUND_TRIP.replace("[10, 12]", "[12, 10]"), "tokyo: nights must be [shortest, longest]"),
         (ONE_WAY.replace("2027-03-05", "2027-02-01"), "tokyo: depart_to is before depart_from"),
-        (ONE_WAY.replace('origin = "SFO"\n', ""), "tokyo: origin is missing"),
+        (ONE_WAY.replace('destination = "NRT"\n', ""), "tokyo: destination is missing"),
         (ONE_WAY + "target = 600\n", "tokyo: unknown setting 'target'"),
         (ONE_WAY + "max_stops = 3\n", "tokyo: max_stops must be 0, 1 or 2"),
         (ONE_WAY + 'cabin = "comfy"\n', "tokyo: cabin must be one of economy"),
@@ -352,7 +352,7 @@ def test_a_watch_may_set_stops_and_cabin(h: Harness):
 
     h.run()
 
-    assert "512 USD" in h.report()
+    assert "512 AUD" in h.report()
 
 
 def test_a_push_that_fails_to_send_is_tried_again_on_the_next_run(h: Harness):
@@ -414,7 +414,7 @@ def test_a_run_that_finds_nothing_keeps_the_lowest_price_seen_earlier_that_day(h
 
     report = h.report()
     assert "No prices found" in report
-    assert "Lowest today: 512 USD" in report
+    assert "Lowest today: 512 AUD" in report
 
 
 def test_report_says_when_part_of_the_travel_window_is_too_far_ahead(h: Harness):
@@ -435,3 +435,12 @@ def test_a_flight_lookup_that_comes_back_empty_is_retried(h: Harness):
     h.run()
 
     assert "Delta, nonstop, 5h 41m" in h.report()
+
+
+def test_a_watch_with_no_origin_leaves_from_melbourne(h: Harness):
+    h.config(ONE_WAY.replace('origin = "SFO"\n', ""))
+    one_way_at(h, 512)
+
+    h.run()
+
+    assert "MEL → NRT" in h.report()
