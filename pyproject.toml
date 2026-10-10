@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "farewatch"
+version = "0.1.0"
+description = "Checks flight prices for the trips you care about and tells you when the price is worth acting on."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = ["flights>=0.9"]
+
+[project.scripts]
+farewatch = "farewatch.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest", "mypy"]
+
+[tool.mypy]
+strict = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = "fli.*"
+ignore_missing_imports = true
+follow_imports = "skip"

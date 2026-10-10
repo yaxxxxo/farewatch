@@ -1,0 +1,25 @@
+# Copy to ~/.farewatch/config.toml and edit.
+
+# Pushes go to this ntfy topic. Anyone who knows the name can read them, so make it
+# long and random. Leave it out to get the Daily Report only.
+ntfy_topic = "farewatch-CHANGE-ME-k3v9q2xw7hd4"
+
+currency = "USD"
+
+[[watch]]
+name = "tokyo-spring"       # your own label; renaming it starts its history afresh
+origin = "SFO"              # airport codes
+destination = "NRT"
+depart_from = 2027-03-01    # Travel Window: the earliest and latest day to leave
+depart_to = 2027-04-30
+nights = [10, 14]           # Trip Length range; leave out for a one-way trip
+target_price = 900          # optional: push when the price is at or below this
+max_stops = 1               # optional: 0, 1 or 2
+cabin = "economy"           # optional: economy, premium_economy, business, first
+
+[[watch]]
+name = "nyc-one-way"
+origin = "SFO"
+destination = "JFK"
+depart_from = 2026-12-01
+depart_to = 2026-12-20
