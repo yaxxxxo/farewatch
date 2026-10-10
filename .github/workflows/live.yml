@@ -1,0 +1,27 @@
+# The only cover for fli_source.py, which the tests replace with a fake.
+# Runs from GitHub's servers, which Google may refuse: a failure here means "look", not "broken".
+name: Live check
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -e .
+      - name: Run one real Check
+        run: |
+          mkdir home
+          start=$(date -u -d "+30 days" +%F)
+          end=$(date -u -d "+40 days" +%F)
+          printf '[[watch]]\nname = "live"\norigin = "MEL"\ndestination = "SYD"\ndepart_from = %s\ndepart_to = %s\nnights = [3, 3]\n' "$start" "$end" > home/config.toml
+          farewatch --home home | tee report.md
+          grep -q "AUD\*\*" report.md
+          ! grep -q "Incomplete Check" report.md

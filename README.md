@@ -97,7 +97,7 @@ If you use Claude Code, copy `skill/farewatch` into `~/.claude/skills/`. It uses
 
 ```
 python -m venv .venv && .venv/bin/pip install -e '.[dev]'
-.venv/bin/pytest && .venv/bin/mypy
+.venv/bin/pytest && .venv/bin/mypy && .venv/bin/ruff check . && .venv/bin/ruff format --check .
 ```
 
 Terms used in the code are defined in [`CONTEXT.md`](CONTEXT.md). MIT licensed.

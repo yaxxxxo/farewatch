@@ -320,18 +320,30 @@ def test_a_run_refuses_to_start_while_another_is_still_going(h: Harness):
 @pytest.mark.parametrize(
     ("config", "complaint"),
     [
-        (ROUND_TRIP.replace("[10, 12]", "[1, 31]"), "tokyo: nights spans 31 Trip Lengths; the most is 30"),
+        (
+            ROUND_TRIP.replace("[10, 12]", "[1, 31]"),
+            "tokyo: nights spans 31 Trip Lengths; the most is 30",
+        ),
         (ROUND_TRIP.replace("[10, 12]", "[12, 10]"), "tokyo: nights must be [shortest, longest]"),
         (ONE_WAY.replace("2027-03-05", "2027-02-01"), "tokyo: depart_to is before depart_from"),
         (ONE_WAY.replace('destination = "NRT"\n', ""), "tokyo: destination is missing"),
         (ONE_WAY + "target = 600\n", "tokyo: unknown setting 'target'"),
         (ONE_WAY + "max_stops = 3\n", "tokyo: max_stops must be 0, 1 or 2"),
         (ONE_WAY + 'cabin = "comfy"\n', "tokyo: cabin must be one of economy"),
-        (ONE_WAY.replace("2027-03-01", '"March 1"'), "tokyo: depart_from must be a date like 2027-03-01"),
+        (
+            ONE_WAY.replace("2027-03-01", '"March 1"'),
+            "tokyo: depart_from must be a date like 2027-03-01",
+        ),
         (ONE_WAY + ONE_WAY, "tokyo: two Watches share this name"),
-        (ROUND_TRIP.replace("[10, 12]", '["10", "12"]'), "tokyo: nights must be [shortest, longest]"),
+        (
+            ROUND_TRIP.replace("[10, 12]", '["10", "12"]'),
+            "tokyo: nights must be [shortest, longest]",
+        ),
         (ROUND_TRIP.replace("[10, 12]", "[1.5, 2.5]"), "tokyo: nights must be [shortest, longest]"),
-        (ONE_WAY.replace('"NRT"', '"Tokyo"'), "tokyo: destination must be a three-letter airport code"),
+        (
+            ONE_WAY.replace('"NRT"', '"Tokyo"'),
+            "tokyo: destination must be a three-letter airport code",
+        ),
         ("", "no Watches"),
     ],
 )

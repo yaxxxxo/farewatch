@@ -139,10 +139,12 @@ def _load_config(home: Path) -> tuple[list[Watch], str, str | None]:
 
 
 def _flight(directions: list[Direction]) -> str:
+    def stops(count: int) -> str:
+        return "nonstop" if not count else f"{count} stop" + "s" * (count > 1)
+
     return " / ".join(
-        f"{leg.airline}, {'nonstop' if not leg.stops else f'{leg.stops} stop' + 's' * (leg.stops > 1)},"
-        f" {leg.minutes // 60}h {leg.minutes % 60:02d}m"
-        for leg in directions
+        f"{d.airline}, {stops(d.stops)}, {d.minutes // 60}h {d.minutes % 60:02d}m"
+        for d in directions
     )
 
 
@@ -232,7 +234,9 @@ def _check(
     if start > watch.depart_to:
         return ["Expired Watch: its Travel Window has passed."], 0
     if start > end:
-        return [f"Not searched: its Travel Window is too far ahead (over {MAX_DAYS_AHEAD} days)."], 0
+        return [
+            f"Not searched: its Travel Window is too far ahead (over {MAX_DAYS_AHEAD} days)."
+        ], 0
 
     fares, date_searches, failed, why = _search(source, sleep, watch, start, end, currency)
     searches = date_searches
@@ -273,7 +277,7 @@ def _check(
                     str(best.depart),
                     best.ret and str(best.ret),
                     best.price,
-                    # An Incomplete Check may have missed the cheap fare, so it cannot say "not a Hit".
+                    # An Incomplete Check may have missed the cheap fare: never "not a Hit".
                     None if failed and not hit else hit,
                     pushed,
                     settings,
@@ -294,7 +298,10 @@ def _check(
     if lowest is not None:
         lines.append(f"Lowest today: {lowest:,.0f} {currency}")
     if end < watch.depart_to:
-        lines += ["", f"Searched up to {end}; later dates are too far ahead for Google to sell yet."]
+        lines += [
+            "",
+            f"Searched up to {end}; later dates are too far ahead for Google to sell yet.",
+        ]
     if failed:
         lines += ["", f"Incomplete Check: {failed} of {date_searches} searches failed ({why})."]
     return lines, searches
