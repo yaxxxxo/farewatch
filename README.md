@@ -11,10 +11,10 @@ Prices come from Google Flights through the [Fli](https://github.com/punitarani/
 You need Python 3.11 or later.
 
 ```
-pipx install git+https://github.com/OWNER/farewatch
+pipx install git+https://github.com/yaxxxxo/farewatch
 ```
 
-or `uv tool install git+https://github.com/OWNER/farewatch`.
+or `uv tool install git+https://github.com/yaxxxxo/farewatch`.
 
 ## Set up
 
