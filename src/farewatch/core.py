@@ -38,6 +38,8 @@ class Watch:
     target_price: float | None = None
     max_stops: int | None = None  # Maximum Stops; None means any
     cabin: str = "economy"
+    exclude_airlines: tuple[str, ...] = ()  # two-character airline codes
+    max_hours: int | None = None  # longest travel time for each direction
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,18 @@ def _watch(raw: dict[str, object], seen: set[str]) -> Watch:
                 f" the most is {MAX_TRIP_LENGTHS}"
             )
         raw = {**raw, "nights": (nights[0], nights[1])}
+    excluded = raw.get("exclude_airlines", [])
+    if not (
+        isinstance(excluded, list)
+        and all(
+            isinstance(c, str) and len(c) == 2 and c.isalnum() and c.isupper() for c in excluded
+        )
+    ):
+        raise fail('exclude_airlines must be a list of airline codes like ["JQ", "TR"]')
+    max_hours = raw.get("max_hours")
+    if max_hours is not None and not (type(max_hours) is int and max_hours >= 1):
+        raise fail("max_hours must be a whole number of hours, 1 or more")
+    raw = {**raw, "exclude_airlines": tuple(excluded)}
     watch = Watch(**raw)  # type: ignore[arg-type]
     if watch.depart_to < watch.depart_from:
         raise fail("depart_to is before depart_from")
@@ -183,39 +197,56 @@ def _pieces(start: date, end: date) -> Iterator[tuple[date, date]]:
         start = piece_end + timedelta(days=1)
 
 
+@dataclass
+class _Found:
+    fares: list[Fare]
+    searches: int = 0  # distinct searches: one per Trip Length per piece of the Travel Window
+    failed: int = 0
+    why: str = "no answer"  # the last failure
+    priced: int = 0  # departure dates that came back with a price, summed over Trip Lengths
+    possible: int = 0
+
+
 def _search(
     source: FlightSource, sleep: Sleep, watch: Watch, start: date, end: date, currency: str
-) -> tuple[list[Fare], int, int, str]:
-    """Every fare found, how many searches were made, how many failed, and the last failure."""
+) -> _Found:
     lengths: list[int | None] = (
         list(range(watch.nights[0], watch.nights[1] + 1)) if watch.nights else [None]
     )
-    fares: list[Fare] = []
-    searches = failed = 0
-    why = "no answer"
+    found = _Found([])
     failed_in_a_row = 0
+
+    def ask(piece: tuple[date, date], nights: int | None, pause: float) -> list[Fare] | None:
+        sleep(pause)
+        try:
+            answer = source.date_prices(watch, *piece, nights, currency)
+        except Exception as error:  # whatever the source throws, a failed search is a gap
+            found.why = f"{type(error).__name__}: {error}"
+            return None
+        if answer is None:
+            found.why = "no answer"
+        return answer
+
     for nights in lengths:
-        for piece_start, piece_end in _pieces(start, end):
-            searches += 1
+        for piece in _pieces(start, end):
+            found.searches += 1
+            days = (piece[1] - piece[0]).days + 1
+            found.possible += days
             if failed_in_a_row >= GIVE_UP_AFTER:  # blocked or misconfigured: stop asking
-                failed += 1
+                found.failed += 1
                 continue
             for attempt in range(RETRIES + 1):
-                sleep(RETRY_PAUSE_SECONDS if attempt else PAUSE_SECONDS)
-                try:
-                    found = source.date_prices(watch, piece_start, piece_end, nights, currency)
-                except Exception as error:  # whatever the source throws, a failed search is a gap
-                    found, why = None, f"{type(error).__name__}: {error}"
-                else:
-                    why = "no answer"
-                if found is not None:
-                    fares += found
-                    failed_in_a_row = 0
+                answer = ask(piece, nights, RETRY_PAUSE_SECONDS if attempt else PAUSE_SECONDS)
+                if answer is not None:
                     break
-            else:
-                failed += 1
+            if answer is None:
+                found.failed += 1
                 failed_in_a_row += 1
-    return fares, searches, failed, why
+                continue
+            failed_in_a_row = 0
+            found.fares += answer
+            found.priced += len({fare.depart for fare in answer})
+    return found
 
 
 def _check(
@@ -238,8 +269,9 @@ def _check(
             f"Not searched: its Travel Window is too far ahead (over {MAX_DAYS_AHEAD} days)."
         ], 0
 
-    fares, date_searches, failed, why = _search(source, sleep, watch, start, end, currency)
-    searches = date_searches
+    found = _search(source, sleep, watch, start, end, currency)
+    fares = found.fares
+    searches = found.searches
     settings = f"{watch} {currency}"
     lines = []
     if fares:
@@ -278,7 +310,7 @@ def _check(
                     best.ret and str(best.ret),
                     best.price,
                     # An Incomplete Check may have missed the cheap fare: never "not a Hit".
-                    None if failed and not hit else hit,
+                    None if found.failed and not hit else hit,
                     pushed,
                     settings,
                 ),
@@ -302,8 +334,18 @@ def _check(
             "",
             f"Searched up to {end}; later dates are too far ahead for Google to sell yet.",
         ]
-    if failed:
-        lines += ["", f"Incomplete Check: {failed} of {date_searches} searches failed ({why})."]
+    if found.priced < found.possible and fares:
+        unit = "date pairs" if watch.nights else "dates"
+        lines += [
+            "",
+            f"Prices found for {found.priced} of {found.possible} {unit};"
+            " Google returned none for the rest.",
+        ]
+    if found.failed:
+        lines += [
+            "",
+            f"Incomplete Check: {found.failed} of {found.searches} searches failed ({found.why}).",
+        ]
     return lines, searches
 
 

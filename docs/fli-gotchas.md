@@ -9,6 +9,9 @@ What the Fli library (`flights` on PyPI, imported as `fli`) does that its signat
 - **`None` means the request failed or the response was unreadable; `[]` means it parsed with no priced dates.** A soft block that answers with an empty calendar is indistinguishable from "no flights".
 - **About 305 days ahead is the limit**, per Fli's own docstring; one search here returned dates up to 326 days out. farewatch stops at 305 (`MAX_DAYS_AHEAD`).
 - **`to_date` must be after today**, or `DateSearchFilters` raises. Same-day departures cannot be searched.
+- **`SearchDates` reads only the first chunk of the response, and loses dates.** `_wire.py` says the calendar endpoint "happens to emit a single chunk". It does not always: MEL→CTS round trips for May 2027 came back as ten chunks of one date each, in a different order per request, so Fli returned one random date out of ten. MEL→NRT for the same days arrived as one chunk of ten. farewatch therefore posts the request itself and reads every chunk (`calendar_fares` in `fli_source.py`), using Fli's private `_wire.iter_wrb_chunks` and `_urls.with_locale_params`. If a Fli upgrade breaks those imports, check whether upstream fixed this first.
+- **`SearchFlights` also reads only the first chunk** (`flights.py`, `parse_first_wrb_payload`). Suspected, not confirmed, as the cause of the flaky round-trip lookups below.
+- **`airlines_exclude` and `max_duration` (minutes, per direction) work on both searches.** Fli's own chunking of wide ranges drops `airlines_exclude`; farewatch does its own splitting, so it is unaffected.
 - **One trip length per request** (`duration`). A range of lengths is one request each.
 - **Results are dates and a price only.** Airline, stops and travel time need a flight search.
 - **`from_date`/`to_date` bound the departure date.** The return date is always departure plus `duration`.

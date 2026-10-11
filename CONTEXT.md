@@ -5,7 +5,7 @@ A self-run tool that repeatedly checks flight prices for the trips a person care
 ## Language
 
 **Watch**:
-One named trip a person wants checked repeatedly: one origin, one destination, one-way or round trip, a Travel Window, and optionally a Target Price and Maximum Stops.
+One named trip a person wants checked repeatedly: one origin, one destination, one-way or round trip, a Travel Window, and optionally a Target Price, Maximum Stops, Maximum Travel Time and Excluded Airlines.
 _Avoid_: Alert, search, tracker, subscription
 
 **Travel Window**:
@@ -18,6 +18,14 @@ _Avoid_: Duration, stay
 
 **Maximum Stops**:
 The most stops an itinerary may have to count for a Watch. Itineraries over it are ignored entirely.
+
+**Maximum Travel Time**:
+The longest door-to-door flying time, layovers included, that one direction of a trip may take to count for a Watch.
+_Avoid_: Max duration, flight time
+
+**Excluded Airlines**:
+Airlines whose flights never count for a Watch.
+_Avoid_: Blocklist, banned airlines
 
 **Check**:
 One run of a Watch against live prices, as often as the person schedules it.

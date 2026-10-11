@@ -45,6 +45,8 @@ max_stops = 1
 | `target_price` | Optional. A price at or below this is a Hit and sends a push. |
 | `max_stops` | Optional. 0, 1 or 2. |
 | `cabin` | Optional. `economy` (default), `premium_economy`, `business` or `first`. |
+| `max_hours` | Optional. Longest travel time you'd accept for each direction, in whole hours. |
+| `exclude_airlines` | Optional. Two-character airline codes to leave out, such as `["JQ", "TR"]`. |
 
 Prices are for one adult. Add as many `[[watch]]` blocks as you like.
 
@@ -84,6 +86,7 @@ Searches are spaced a second apart and come from your own connection. Many wide 
 
 ## Reading the report
 
+- **Prices found for 3 of 10 dates** means Google returned a price for only some of the leaving days in the window. That usually means there are no flights on the other days, or none within your `max_stops`, `max_hours` and `exclude_airlines`.
 - **Incomplete Check** means some searches failed after retries. The price shown is real, but a cheaper date may have been missed.
 - **Expired Watch** means the whole Travel Window has passed. Same-day departures are not searched, so a Watch expires on the last day of its window. Remove it from the config when you like.
 - **Too far ahead** means some or all of the window is more than about 305 days out, which is as far as Google sells. Those dates are picked up as they come into range.

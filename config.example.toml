@@ -16,6 +16,8 @@ nights = [10, 14]           # Trip Length range; leave out for a one-way trip
 target_price = 900          # optional: push when the price is at or below this
 max_stops = 1               # optional: 0, 1 or 2
 cabin = "economy"           # optional: economy, premium_economy, business, first
+max_hours = 24              # optional: longest travel time each way, in hours
+exclude_airlines = ["JQ"]   # optional: two-character airline codes to leave out
 
 [[watch]]
 name = "sydney-one-way"     # no origin, so it leaves from Melbourne

@@ -14,6 +14,7 @@ farewatch checks flight prices on a schedule from `~/.farewatch/config.toml`. Yo
    - `depart_from`, `depart_to`: bare TOML dates (`2027-03-01`, no quotes). Google sells about 305 days ahead; later dates are skipped until they come into range.
    - `nights = [shortest, longest]`: omit for one-way. At most 30 lengths. Each length is one search per run, so keep the range as narrow as the user's flexibility allows.
    - `target_price`: omit if the user gave none. If they want help choosing one and the Fli MCP tools are available, run `search_dates` once and quote the current cheapest price.
+   - `max_hours` (whole hours, each direction) and `exclude_airlines` (two-character airline codes, e.g. `["JQ"]`; look the code up, never guess it): only when asked for.
    - `max_stops` (0, 1 or 2) and `cabin` (`economy`, `premium_economy`, `business`, `first`): only when asked for.
 3. Append the entry, leaving the user's other Watches and comments untouched.
 4. Tell the user that a run checks every Watch and can send real Pushes, then run `farewatch` once and show them that Watch's section of the report. A config mistake is reported by name; fix it and rerun.

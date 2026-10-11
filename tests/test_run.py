@@ -21,9 +21,16 @@ class FakeSource:
         self.itinerary: list[Direction] | None = None
         self.during_search = lambda: None
         self.lookup_failures = 0
+        self.watches: list = []
+
+    @property
+    def asked(self) -> list[tuple[str, date, date, int | None]]:
+        """Each distinct search, in order, ignoring repeats of the same one."""
+        return list(dict.fromkeys(self.calls))
 
     def date_prices(self, watch, depart_from, depart_to, nights, currency):
         self.calls.append((watch.name, depart_from, depart_to, nights))
+        self.watches.append(watch)
         self.during_search()
         if self.failures:
             self.failures -= 1
@@ -110,7 +117,7 @@ def test_best_dates_are_the_cheapest_across_every_trip_length(h: Harness):
 
     h.run()
 
-    assert [c[3] for c in h.source.calls] == [10, 11, 12]
+    assert [c[3] for c in h.source.asked] == [10, 11, 12]
     report = h.report()
     assert "790 AUD" in report
     assert "depart 2027-03-04, return 2027-03-15 (11 nights)" in report
@@ -183,7 +190,7 @@ def test_a_failed_search_is_retried_after_a_pause(h: Harness):
 
     h.run()
 
-    assert len(h.source.calls) == 3
+    assert len(h.source.calls) >= 3
     assert len(h.sleeps) >= 2
     report = h.report()
     assert "512 AUD" in report
@@ -230,7 +237,7 @@ def test_dates_already_past_are_dropped_from_the_search(h: Harness):
 
     h.run(datetime(2027, 3, 2, 9, 0))
 
-    assert [(c[1], c[2]) for c in h.source.calls] == [(date(2027, 3, 3), date(2027, 3, 5))]
+    assert [(c[1], c[2]) for c in h.source.asked] == [(date(2027, 3, 3), date(2027, 3, 5))]
 
 
 def test_a_wide_travel_window_is_searched_in_pieces_google_accepts(h: Harness):
@@ -239,7 +246,7 @@ def test_a_wide_travel_window_is_searched_in_pieces_google_accepts(h: Harness):
 
     h.run()
 
-    spans = [(c[1], c[2]) for c in h.source.calls]
+    spans = [(c[1], c[2]) for c in h.source.asked]
     assert spans == [
         (date(2027, 3, 1), date(2027, 4, 30)),
         (date(2027, 5, 1), date(2027, 6, 28)),
@@ -291,11 +298,17 @@ def test_report_shows_the_lowest_price_seen_that_day(h: Harness):
 
 
 def test_run_reports_how_many_searches_it_made(h: Harness):
-    h.config(ROUND_TRIP + ONE_WAY.replace("tokyo", "osaka"))
+    h.config(ROUND_TRIP + ONE_WAY.replace("tokyo", "osaka").replace("2027-03-05", "2027-03-01"))
+    for nights in (10, 11, 12):
+        h.source.prices[nights] = [
+            Fare(date(2027, 3, day), date(2027, 3, day + nights), 900) for day in range(1, 6)
+        ]
     one_way_at(h, 512)
-    h.source.itinerary = []
+    h.source.prices[None] = [Fare(date(2027, 3, 1), None, 512)]
+    h.source.itinerary = [Direction("ANA", 0, 600)]
 
-    assert h.run() == 3 + 1 + 1  # three Trip Lengths, one one-way, one flight lookup
+    # three Trip Lengths and a flight lookup, then one one-way search and its flight lookup
+    assert h.run() == (3 + 1) + (1 + 1)
 
 
 def test_a_run_refuses_to_start_while_another_is_still_going(h: Harness):
@@ -313,7 +326,7 @@ def test_a_run_refuses_to_start_while_another_is_still_going(h: Harness):
     h.run()
 
     assert overlapping == [AlreadyRunning]
-    assert len(h.source.calls) == 1
+    assert len(h.source.asked) == 1
     h.run()  # and the lock is released afterwards
 
 
@@ -343,6 +356,22 @@ def test_a_run_refuses_to_start_while_another_is_still_going(h: Harness):
         (
             ONE_WAY.replace('"NRT"', '"Tokyo"'),
             "tokyo: destination must be a three-letter airport code",
+        ),
+        (
+            ONE_WAY + 'exclude_airlines = "JQ"\n',
+            "tokyo: exclude_airlines must be a list of airline codes",
+        ),
+        (
+            ONE_WAY + 'exclude_airlines = ["Jetstar"]\n',
+            "tokyo: exclude_airlines must be a list of airline codes",
+        ),
+        (
+            ONE_WAY + "max_hours = 0\n",
+            "tokyo: max_hours must be a whole number of hours, 1 or more",
+        ),
+        (
+            ONE_WAY + "max_hours = 20.5\n",
+            "tokyo: max_hours must be a whole number of hours, 1 or more",
         ),
         ("", "no Watches"),
     ],
@@ -456,3 +485,44 @@ def test_a_watch_with_no_origin_leaves_from_melbourne(h: Harness):
     h.run()
 
     assert "MEL → NRT" in h.report()
+
+
+def test_a_watch_may_exclude_airlines_and_cap_travel_time(h: Harness):
+    h.config(ONE_WAY + 'exclude_airlines = ["JQ", "3K"]\nmax_hours = 20\n')
+    one_way_at(h, 512)
+
+    h.run()
+
+    watch = h.source.watches[0]
+    assert watch.exclude_airlines == ("JQ", "3K")
+    assert watch.max_hours == 20
+    assert "512 AUD" in h.report()
+
+
+def test_report_says_when_only_some_dates_came_back_with_a_price(h: Harness):
+    h.config(ONE_WAY)
+    one_way_at(h, 512)
+
+    h.run()
+
+    assert len(h.source.calls) == 1
+    assert "Prices found for 1 of 5 dates" in h.report()
+
+
+def test_a_fully_priced_travel_window_is_searched_once_and_says_nothing_of_coverage(h: Harness):
+    h.config(ONE_WAY)
+    h.source.prices[None] = [Fare(date(2027, 3, day), None, 500 + day) for day in range(1, 6)]
+
+    h.run()
+
+    assert len(h.source.calls) == 1
+    assert "Prices found for" not in h.report()
+
+
+def test_coverage_counts_every_trip_length(h: Harness):
+    h.config(ROUND_TRIP)
+    h.source.prices = {10: [Fare(date(2027, 3, 1), date(2027, 3, 11), 880)]}
+
+    h.run()
+
+    assert "Prices found for 1 of 15 date pairs" in h.report()
