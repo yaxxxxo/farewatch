@@ -381,6 +381,27 @@ def test_a_run_refuses_to_start_while_another_is_still_going(h: Harness):
             ONE_WAY + "max_hours = 20.5\n",
             "tokyo: max_hours must be a whole number of hours, 1 or more",
         ),
+        (
+            ONE_WAY + "must_include = 2027-03-03\n",
+            "tokyo: must_include needs nights; it only applies to round trips",
+        ),
+        (
+            ROUND_TRIP + 'must_include = "March 3"\n',
+            "tokyo: must_include must be a date like 2027-05-21, without quotes",
+        ),
+        (
+            ROUND_TRIP.replace("[10, 12]", "[1, 2]") + "must_include = 2027-03-03\n",
+            "tokyo: nights must reach 3 or more to spend all of must_include there",
+        ),
+        (
+            # Window 1-5 March; covering 20 March for 10-12 nights needs leaving 9-18 March.
+            ROUND_TRIP + "must_include = 2027-03-20\n",
+            "tokyo: no trip in the Travel Window covers must_include",
+        ),
+        (
+            HOKKAIDO.replace("must_include = 2027-05-21\n", ""),
+            "hokkaido: depart_from is missing",
+        ),
         ("", "no Watches"),
     ],
 )
