@@ -5,12 +5,16 @@ A self-run tool that repeatedly checks flight prices for the trips a person care
 ## Language
 
 **Watch**:
-One named trip a person wants checked repeatedly: one origin, one destination, one-way or round trip, a Travel Window, and optionally a Target Price, Maximum Stops, Maximum Travel Time and Excluded Airlines.
+One named trip a person wants checked repeatedly: one origin, one destination, one-way or round trip, a Travel Window, and optionally a Must-Include Date, Target Price, Maximum Stops, Maximum Travel Time and Excluded Airlines.
 _Avoid_: Alert, search, tracker, subscription
 
 **Travel Window**:
-The range of dates within which a Watch's outbound flight may depart. A fixed date is a Travel Window of one day.
+The range of dates within which a Watch's outbound flight may depart. A fixed date is a Travel Window of one day. A Watch with a Must-Include Date may leave it out, in which case it is worked out from that date and the Trip Length; if given, it narrows that.
 _Avoid_: Date range, flexible dates
+
+**Must-Include Date**:
+An optional day, on a round-trip Watch only, that a person must spend entirely at the destination: they arrive by the day before and leave no earlier than the day after. Only trips that cover it count for the Watch.
+_Avoid_: Fixed date, anchor date, required date
 
 **Trip Length**:
 The range of nights between outbound and return that a round-trip Watch accepts.
@@ -47,16 +51,20 @@ _Avoid_: History entry, snapshot
 The cheapest travel dates a Check found within a Watch's Travel Window and Trip Length.
 _Avoid_: Optimal dates, cheapest-now
 
-**Daily Report**:
-The written result of one day's Checks, listing every Watch with its latest Best Dates and that day's lowest price, whether or not it was a Hit.
-_Avoid_: Summary, digest, log
+**Alternatives**:
+The next cheapest options a Check found on different dates from the Best Dates, each shown with its price, stops and travel time, so a person can pay a little more for better dates.
+_Avoid_: Runner-ups, other options
+
+**Typical Range**:
+Google's usual low-to-high price for a trip, used to judge whether a Check's price is good, as opposed to merely under a Target Price.
+_Avoid_: Normal price, average fare
 
 **Target Price**:
-A price a person sets on a Watch; a Check that finds a price at or below it is a Hit.
+An optional price a person sets on a Watch; a Check that finds a price at or below it is a Hit even if the price is inside the Typical Range.
 _Avoid_: Threshold, budget
 
 **Hit**:
-A Check whose best price is at or below the Watch's Target Price.
+A Check whose best price is below the bottom of the Typical Range, or at or below the Watch's Target Price if it has one.
 _Avoid_: Alert, deal, match
 
 **Push**:

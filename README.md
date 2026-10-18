@@ -40,7 +40,8 @@ max_stops = 1
 | `currency` | Top of the file, not per Watch. Defaults to `AUD`. |
 | `name` | Your label for the Watch. Renaming it starts its history afresh. |
 | `origin`, `destination` | Three-letter airport codes. `origin` defaults to `MEL` (Melbourne) if left out. |
-| `depart_from`, `depart_to` | The earliest and latest day you would leave. |
+| `depart_from`, `depart_to` | The earliest and latest day you would leave. Either or both can be left out when `must_include` is set. |
+| `must_include` | Optional, round trips only. A day you must spend entirely at the destination, such as `2027-05-21`. Only trips that leave Melbourne at least two days before it and fly home after it count. |
 | `nights` | Shortest and longest stay. Leave it out for a one-way trip. At most 30 lengths. |
 | `target_price` | Optional. A price at or below this is a Hit and sends a push. |
 | `max_stops` | Optional. 0, 1 or 2. |
