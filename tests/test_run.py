@@ -407,6 +407,10 @@ def test_a_run_refuses_to_start_while_another_is_still_going(h: Harness):
             "hokkaido: depart_to is before depart_from",
         ),
         (
+            HOKKAIDO + "depart_to = 2027-05-05\n",  # before the first covering departure, 10 May
+            "hokkaido: no trip in the Travel Window covers must_include",
+        ),
+        (
             HOKKAIDO.replace("2027-05-21", "2027-05-21T10:00:00"),
             "hokkaido: must_include must be a date like 2027-05-21, without quotes",
         ),
