@@ -19,6 +19,11 @@ def _ntfy(topic: str, title: str, body: str) -> None:
     urllib.request.urlopen(request, timeout=15).close()
 
 
+def say(message: str) -> None:
+    """Progress goes to stderr, so the report on stdout stays clean."""
+    print(message, file=sys.stderr, flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="farewatch",
@@ -33,11 +38,12 @@ def main() -> None:
     home: Path = parser.parse_args().home
     home.mkdir(parents=True, exist_ok=True)
 
+    say("Starting up…")
     from farewatch.fli_source import FliSource  # imported late: Fli is slow to load
 
     now = datetime.now()
     try:
-        searches = run(home, FliSource(), _ntfy, now, time.sleep)
+        searches = run(home, FliSource(), _ntfy, now, time.sleep, say)
     except ConfigError as error:
         sys.exit(f"farewatch: {error}")
     except AlreadyRunning as error:

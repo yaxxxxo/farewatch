@@ -55,12 +55,13 @@ class Harness:
         self.pushes: list[tuple[str, str, str]] = []
         self.push_works = True
         self.sleeps: list[float] = []
+        self.said: list[str] = []
 
     def config(self, text: str) -> None:
         (self.home / "config.toml").write_text(text)
 
     def run(self, now: datetime = NOW):
-        return run(self.home, self.source, self.push, now, self.sleeps.append)
+        return run(self.home, self.source, self.push, now, self.sleeps.append, self.said.append)
 
     def push(self, topic: str, title: str, body: str) -> None:
         if not self.push_works:
@@ -637,3 +638,51 @@ def test_one_travel_window_bound_with_a_must_include_date_narrows_only_that_side
     assert [(c[1], c[2], c[3]) for c in h.source.asked] == [
         (date(2027, 5, 22 - nights), date(2027, 5, 16), nights) for nights in range(7, 13)
     ]
+
+
+def test_progress_is_reported_before_each_search_and_the_flight_lookup(h: Harness):
+    h.config(ROUND_TRIP)
+    h.source.prices = {11: [Fare(date(2027, 3, 4), date(2027, 3, 15), 790)]}
+    h.source.itinerary = [Direction("JL", 0, 600)]
+
+    h.run()
+
+    assert h.said == [
+        "tokyo: searching 10 nights, leaving 2027-03-01 to 2027-03-05 (1 of 3)",
+        "tokyo: searching 11 nights, leaving 2027-03-01 to 2027-03-05 (2 of 3)",
+        "tokyo: searching 12 nights, leaving 2027-03-01 to 2027-03-05 (3 of 3)",
+        "tokyo: looking up the flight for 790 AUD on 2027-03-04",
+    ]
+
+
+def test_progress_says_when_a_failed_search_is_tried_again(h: Harness):
+    h.config(ONE_WAY)
+    h.source.failures = 1
+
+    h.run()
+
+    assert h.said == [
+        "tokyo: searching one way, leaving 2027-03-01 to 2027-03-05 (1 of 1)",
+        "tokyo: no answer; trying again in 5s",
+    ]
+
+
+def test_report_says_the_date_and_time_it_was_last_checked(h: Harness):
+    h.config(ONE_WAY)
+
+    h.run()
+
+    assert "Last checked 2026-10-10 09:00." in h.report()
+
+
+def test_each_watch_heading_gives_its_travel_dates(h: Harness):
+    h.config(ONE_WAY + HOKKAIDO)
+
+    h.run()
+
+    report = h.report()
+    assert "## tokyo — SFO → NRT · leaving 2027-03-01 to 2027-03-05\n" in report
+    assert (
+        "## hokkaido — MEL → CTS · leaving 2027-05-10 to 2027-05-19 · must include 2027-05-21\n"
+        in report
+    )

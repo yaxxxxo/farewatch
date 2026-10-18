@@ -71,6 +71,7 @@ class FlightSource(Protocol):
 
 Push = Callable[[str, str, str], None]
 Sleep = Callable[[float], None]
+Say = Callable[[str], None]  # progress for a person watching the run
 
 
 def _covering(must_include: date, nights: int) -> tuple[date, date]:
@@ -237,7 +238,13 @@ class _Found:
 
 
 def _search(
-    source: FlightSource, sleep: Sleep, watch: Watch, start: date, end: date, currency: str
+    source: FlightSource,
+    sleep: Sleep,
+    say: Say,
+    watch: Watch,
+    start: date,
+    end: date,
+    currency: str,
 ) -> _Found:
     lengths: list[int | None] = (
         list(range(watch.nights[0], watch.nights[1] + 1)) if watch.nights else [None]
@@ -256,28 +263,38 @@ def _search(
             found.why = "no answer"
         return answer
 
+    planned: list[tuple[int | None, tuple[date, date]]] = []
     for nights in lengths:
         first = start
         if watch.must_include and nights:  # shorter stays must leave later to cover the date
             first = max(start, _covering(watch.must_include, nights)[0])
-        for piece in _pieces(first, end):
-            found.searches += 1
-            days = (piece[1] - piece[0]).days + 1
-            found.possible += days
-            if failed_in_a_row >= GIVE_UP_AFTER:  # blocked or misconfigured: stop asking
-                found.failed += 1
-                continue
-            for attempt in range(RETRIES + 1):
-                answer = ask(piece, nights, RETRY_PAUSE_SECONDS if attempt else PAUSE_SECONDS)
-                if answer is not None:
-                    break
-            if answer is None:
-                found.failed += 1
-                failed_in_a_row += 1
-                continue
-            failed_in_a_row = 0
-            found.fares += answer
-            found.priced += len({fare.depart for fare in answer})
+        planned += [(nights, piece) for piece in _pieces(first, end)]
+
+    for number, (nights, piece) in enumerate(planned, 1):
+        found.searches += 1
+        days = (piece[1] - piece[0]).days + 1
+        found.possible += days
+        if failed_in_a_row >= GIVE_UP_AFTER:  # blocked or misconfigured: stop asking
+            found.failed += 1
+            continue
+        trip = f"{nights} nights" if nights else "one way"
+        say(
+            f"{watch.name}: searching {trip}, leaving {piece[0]} to {piece[1]}"
+            f" ({number} of {len(planned)})"
+        )
+        for attempt in range(RETRIES + 1):
+            if attempt:
+                say(f"{watch.name}: {found.why}; trying again in {RETRY_PAUSE_SECONDS:.0f}s")
+            answer = ask(piece, nights, RETRY_PAUSE_SECONDS if attempt else PAUSE_SECONDS)
+            if answer is not None:
+                break
+        if answer is None:
+            found.failed += 1
+            failed_in_a_row += 1
+            continue
+        failed_in_a_row = 0
+        found.fares += answer
+        found.priced += len({fare.depart for fare in answer})
     return found
 
 
@@ -286,6 +303,7 @@ def _check(
     source: FlightSource,
     push: Push,
     sleep: Sleep,
+    say: Say,
     db: sqlite3.Connection,
     now: datetime,
     currency: str,
@@ -301,7 +319,7 @@ def _check(
             f"Not searched: its Travel Window is too far ahead (over {MAX_DAYS_AHEAD} days)."
         ], 0
 
-    found = _search(source, sleep, watch, start, end, currency)
+    found = _search(source, sleep, say, watch, start, end, currency)
     fares = found.fares
     searches = found.searches
     settings = f"{watch} {currency}"
@@ -313,6 +331,7 @@ def _check(
         if best.ret:
             dates += f", return {best.ret} ({(best.ret - best.depart).days} nights)"
         searches += 1
+        say(f"{watch.name}: looking up the flight for {money} on {best.depart}")
         directions = None
         for attempt in range(RETRIES + 1):
             sleep(RETRY_PAUSE_SECONDS if attempt else PAUSE_SECONDS)
@@ -381,7 +400,14 @@ def _check(
     return lines, searches
 
 
-def run(home: Path, source: FlightSource, push: Push, now: datetime, sleep: Sleep) -> int:
+def run(
+    home: Path,
+    source: FlightSource,
+    push: Push,
+    now: datetime,
+    sleep: Sleep,
+    say: Say = lambda _: None,
+) -> int:
     """Check every Watch in the config, write the Daily Report, and return the search count."""
     # Held for the whole run and released by the OS if the run dies, so it can never go stale.
     lock = sqlite3.connect(home / "lock.db", timeout=0, isolation_level=None)
@@ -392,12 +418,16 @@ def run(home: Path, source: FlightSource, push: Push, now: datetime, sleep: Slee
             raise AlreadyRunning("an earlier farewatch run is still going") from None
         watches, currency, topic = _load_config(home)
         db = _open_store(home)
-        lines = [f"# farewatch — {now:%Y-%m-%d}", "", f"Last checked {now:%H:%M}.", ""]
+        lines = [f"# farewatch — {now:%Y-%m-%d}", "", f"Last checked {now:%Y-%m-%d %H:%M}.", ""]
         total = 0
         for watch in watches:
-            checked, searches = _check(watch, source, push, sleep, db, now, currency, topic)
+            checked, searches = _check(watch, source, push, sleep, say, db, now, currency, topic)
             total += searches
-            lines += [f"## {watch.name} — {watch.origin} → {watch.destination}", "", *checked, ""]
+            heading = f"## {watch.name} — {watch.origin} → {watch.destination}"
+            heading += f" · leaving {watch.depart_from} to {watch.depart_to}"
+            if watch.must_include:
+                heading += f" · must include {watch.must_include}"
+            lines += [heading, "", *checked, ""]
         db.close()
         reports = home / "reports"
         reports.mkdir(exist_ok=True)
