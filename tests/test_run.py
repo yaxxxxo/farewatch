@@ -103,8 +103,8 @@ def test_daily_report_shows_the_cheapest_date_in_the_travel_window(h: Harness):
     assert "tokyo" in report
     assert "SFO → NRT" in report
     assert "512 AUD" in report
-    assert "depart 2027-03-03" in report
-    assert "640" not in report
+    assert "**512 AUD** · depart 2027-03-03" in report
+    assert "**640" not in report  # dearer dates are only Alternatives
 
 
 ROUND_TRIP = ONE_WAY + "nights = [10, 12]\n"
@@ -318,7 +318,8 @@ def test_run_reports_how_many_searches_it_made(h: Harness):
     h.source.prices[None] = [Fare(date(2027, 3, 1), None, 512)]
     h.source.itinerary = [Direction("ANA", 0, 600)]
 
-    # three Trip Lengths and a flight lookup, then one one-way search and its flight lookup
+    # three Trip Lengths and a flight lookup (every price ties, so no Alternatives), then one
+    # one-way search and its flight lookup
     assert h.run() == (3 + 1) + (1 + 1)
 
 
@@ -699,3 +700,92 @@ def test_a_flight_lookup_that_errors_is_skipped_rather_than_retried(h: Harness):
     assert h.source.lookups == 1
     assert "tokyo: flight lookup failed (ConnectionError: blocked); skipping it" in h.said
     assert "512 AUD" in h.report()
+
+
+def test_report_lists_the_next_cheapest_dates_as_alternatives(h: Harness):
+    h.config(ROUND_TRIP)
+    h.source.prices = {
+        10: [
+            Fare(date(2027, 3, 1), date(2027, 3, 11), 900),
+            Fare(date(2027, 3, 2), date(2027, 3, 12), 820),
+        ],
+        11: [
+            Fare(date(2027, 3, 4), date(2027, 3, 15), 790),
+            Fare(date(2027, 3, 5), date(2027, 3, 16), 1000),
+        ],
+        12: [Fare(date(2027, 3, 2), date(2027, 3, 14), 865)],
+    }
+    h.source.itinerary = [Direction("JL", 0, 600), Direction("JL", 0, 610)]
+
+    h.run()
+
+    flight = "JL, nonstop, 10h 00m / JL, nonstop, 10h 10m"
+    assert "**790 AUD** · depart 2027-03-04, return 2027-03-15 (11 nights)" in h.report()
+    assert (
+        "Alternatives:\n\n"
+        f"- 820 AUD · depart 2027-03-02, return 2027-03-12 (10 nights) · {flight}\n"
+        f"- 865 AUD · depart 2027-03-02, return 2027-03-14 (12 nights) · {flight}\n"
+        f"- 900 AUD · depart 2027-03-01, return 2027-03-11 (10 nights) · {flight}\n"
+    ) in h.report()
+    assert "1,000" not in h.report()
+    assert h.source.lookups == 4
+
+
+def test_an_alternative_whose_flight_lookup_fails_still_shows_its_dates_and_price(h: Harness):
+    h.config(ONE_WAY)
+    h.source.prices[None] = [Fare(date(2027, 3, 3), None, 512), Fare(date(2027, 3, 4), None, 540)]
+
+    h.run()
+
+    assert "Alternatives:\n\n- 540 AUD · depart 2027-03-04\n" in h.report()
+
+
+def test_a_check_that_found_one_fare_lists_no_alternatives(h: Harness):
+    h.config(ONE_WAY)
+    one_way_at(h, 512)
+
+    h.run()
+
+    assert "Alternatives" not in h.report()
+
+
+def test_other_dates_at_the_best_price_are_summarised_and_alternatives_cost_more(h: Harness):
+    h.config(ROUND_TRIP)
+    h.source.prices = {
+        10: [
+            Fare(date(2027, 3, 1), date(2027, 3, 11), 900),
+            Fare(date(2027, 3, 2), date(2027, 3, 12), 900),
+        ],
+        11: [Fare(date(2027, 3, 4), date(2027, 3, 15), 900)],
+        12: [
+            Fare(date(2027, 3, 3), date(2027, 3, 15), 950),
+            Fare(date(2027, 3, 5), date(2027, 3, 17), 950),
+            Fare(date(2027, 3, 1), date(2027, 3, 13), 990),
+        ],
+    }
+
+    h.run()
+
+    report = h.report()
+    assert "**900 AUD** · depart 2027-03-01, return 2027-03-11 (10 nights)" in report
+    assert (
+        "Same price on 2 other date pairs, leaving any day from 2027-03-01 to 2027-03-04,"
+        " 10 to 11 nights." in report
+    )
+    assert (
+        "Alternatives:\n\n"
+        "- 950 AUD · depart 2027-03-03, return 2027-03-15 (12 nights)\n"
+        "- 990 AUD · depart 2027-03-01, return 2027-03-13 (12 nights)\n"
+    ) in report
+
+
+def test_a_single_other_one_way_date_at_the_best_price_is_summarised(h: Harness):
+    h.config(ONE_WAY)
+    h.source.prices[None] = [Fare(date(2027, 3, 3), None, 512), Fare(date(2027, 3, 5), None, 512)]
+
+    h.run()
+
+    assert (
+        "Same price on 1 other date, leaving any day from 2027-03-03 to 2027-03-05." in h.report()
+    )
+    assert "Alternatives" not in h.report()

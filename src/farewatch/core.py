@@ -16,6 +16,7 @@ RETRY_PAUSE_SECONDS = 5.0
 RETRIES = 2
 GIVE_UP_AFTER = 3  # failed searches in a row before a Watch's remaining searches are skipped
 MAX_TRIP_LENGTHS = 30
+ALTERNATIVES = 3  # next cheapest options shown under the Best Dates
 CABINS = ("economy", "premium_economy", "business", "first")
 
 
@@ -192,6 +193,24 @@ def _flight(directions: list[Direction]) -> str:
     )
 
 
+def _same_price(best: Fare, ties: list[Fare]) -> str:
+    """One line saying how many other dates the Best Dates' price is also found on, and where."""
+    same = [best, *ties]
+    unit = "date pair" if best.ret else "date"
+    text = (
+        f"Same price on {len(ties)} other {unit}{'s' * (len(ties) > 1)}, leaving any day from"
+        f" {min(f.depart for f in same)} to {max(f.depart for f in same)}"
+    )
+    stays = sorted((f.ret - f.depart).days for f in same if f.ret)
+    if stays:
+        text += (
+            f", {stays[0]} nights"
+            if stays[0] == stays[-1]
+            else f", {stays[0]} to {stays[-1]} nights"
+        )
+    return text + "."
+
+
 def _link(watch: Watch, fare: Fare) -> str:
     when = f"through {fare.ret}" if fare.ret else "one way"
     query = f"Flights from {watch.origin} to {watch.destination} on {fare.depart} {when}"
@@ -324,26 +343,38 @@ def _check(
     searches = found.searches
     settings = f"{watch} {currency}"
     lines = []
-    if fares:
-        best = min(fares, key=lambda f: f.price)
-        money = f"{best.price:,.0f} {currency}"
-        dates = f"depart {best.depart}"
-        if best.ret:
-            dates += f", return {best.ret} ({(best.ret - best.depart).days} nights)"
+
+    def describe(fare: Fare) -> str:
+        text = f"depart {fare.depart}"
+        if fare.ret:
+            text += f", return {fare.ret} ({(fare.ret - fare.depart).days} nights)"
+        return text
+
+    def look_up(fare: Fare) -> list[Direction] | None:
+        nonlocal searches
         searches += 1
-        say(f"{watch.name}: looking up the flight for {money} on {best.depart}")
-        directions = None
+        say(
+            f"{watch.name}: looking up the flight for {fare.price:,.0f} {currency} on {fare.depart}"
+        )
         for attempt in range(RETRIES + 1):
             sleep(RETRY_PAUSE_SECONDS if attempt else PAUSE_SECONDS)
             try:
-                directions = source.directions(watch, best, currency)
+                directions = source.directions(watch, fare, currency)
             except Exception as error:  # a nicety: dates and price stand without it
                 # An error is usually a timeout; retrying it would only make the run wait longer.
                 why = f"{type(error).__name__}: {error}"
                 say(f"{watch.name}: flight lookup failed ({why}); skipping it")
-                break
+                return None
             if directions:
-                break
+                return directions
+        return None
+
+    if fares:
+        ranked = sorted(fares, key=lambda f: (f.price, f.depart, f.ret or f.depart))
+        best = ranked[0]
+        money = f"{best.price:,.0f} {currency}"
+        dates = describe(best)
+        directions = look_up(best)
         details = ([_flight(directions)] if directions else []) + [_link(watch, best)]
         hit = watch.target_price is not None and best.price <= watch.target_price
         pushed = push_failed = False
@@ -375,6 +406,20 @@ def _check(
             lines += [detail, ""]
         if push_failed:
             lines += ["Push failed to send; the next run will try again.", ""]
+        if ties := [fare for fare in ranked[1:] if fare.price == best.price]:
+            lines += [_same_price(best, ties), ""]
+        alternatives: list[Fare] = []  # the cheapest option at each of the next prices up
+        for fare in ranked:
+            if len(alternatives) < ALTERNATIVES and fare.price > (alternatives or [best])[-1].price:
+                alternatives.append(fare)
+        if alternatives:
+            lines += ["Alternatives:", ""]
+            for fare in alternatives:
+                line = f"- {fare.price:,.0f} {currency} · {describe(fare)}"
+                if flight := look_up(fare):
+                    line += f" · {_flight(flight)}"
+                lines.append(line)
+            lines.append("")
     else:
         lines += ["No prices found.", ""]
     (lowest,) = db.execute(

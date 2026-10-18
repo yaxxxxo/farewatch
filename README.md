@@ -81,13 +81,15 @@ You can run it more often, but hourly suits small configs only: a few Watches wi
 
 ## How many searches a run makes
 
-Each Watch costs one search per Trip Length for every 61 days of Travel Window, plus one to look up the flight. A search can be more than one request to Google, because failed ones are retried. A Watch with `nights = [10, 14]` and a two-month window is 6 searches; 30 lengths over six months is about 90. Every run prints its total.
+Each Watch costs one search per Trip Length for every 61 days of Travel Window, plus one to look up the flight on the Best Dates and one for each of up to three Alternatives. A search can be more than one request to Google, because failed ones are retried. A Watch with `nights = [10, 14]` and a two-month window is 6 to 9 searches; 30 lengths over six months is about 90. Every run prints its total.
 
 Searches are spaced a second apart and come from your own connection. Many wide Watches run hourly can reach thousands of searches a day, and Google may start refusing them. If the report shows Incomplete Checks, narrow `nights` or run less often.
 
 ## Reading the report
 
 - **Prices found for 3 of 10 dates** means Google returned a price for only some of the leaving days in the window. That usually means there are no flights on the other days, or none within your `max_stops`, `max_hours` and `exclude_airlines`.
+- **Same price on 21 other date pairs** means the cheapest fare is not tied to the dates shown: any date pair in that range and stay length can cost the same, though not every combination in it necessarily does. Use the Google Flights link and change the dates.
+- **Alternatives** are the next cheapest prices above that, one option each, so you can see what paying more would buy, such as a shorter trip or a better airline.
 - **Incomplete Check** means some searches failed after retries. The price shown is real, but a cheaper date may have been missed.
 - **Expired Watch** means the whole Travel Window has passed. Same-day departures are not searched, so a Watch expires on the last day of its window. Remove it from the config when you like.
 - **Too far ahead** means some or all of the window is more than about 305 days out, which is as far as Google sells. Those dates are picked up as they come into range.

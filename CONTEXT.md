@@ -52,7 +52,7 @@ The cheapest travel dates a Check found within a Watch's Travel Window and Trip 
 _Avoid_: Optimal dates, cheapest-now
 
 **Alternatives**:
-The next cheapest options a Check found on different dates from the Best Dates, each shown with its price, stops and travel time, so a person can pay a little more for better dates.
+The next cheapest prices above the Best Dates' price that a Check found, one option per price, each shown with its dates, stops and travel time, so a person can see what paying a little more would buy. Other dates at the Best Dates' own price are not Alternatives; the Check just says how many there are and their range.
 _Avoid_: Runner-ups, other options
 
 **Typical Range**:
