@@ -106,6 +106,14 @@ def test_daily_report_shows_the_cheapest_date_in_the_travel_window(h: Harness):
 
 ROUND_TRIP = ONE_WAY + "nights = [10, 12]\n"
 
+HOKKAIDO = """
+[[watch]]
+name = "hokkaido"
+destination = "CTS"
+must_include = 2027-05-21
+nights = [7, 12]
+"""
+
 
 def test_best_dates_are_the_cheapest_across_every_trip_length(h: Harness):
     h.config(ROUND_TRIP)
@@ -526,3 +534,63 @@ def test_coverage_counts_every_trip_length(h: Harness):
     h.run()
 
     assert "Prices found for 1 of 15 date pairs" in h.report()
+
+
+def test_a_must_include_date_limits_each_trip_length_to_trips_that_cover_it(h: Harness):
+    h.config(HOKKAIDO)
+
+    h.run()
+
+    # Leave by 19 May (two days ahead, as arrival is often the next day) and fly home on 22 May
+    # or later: n nights means leaving no earlier than 22 May minus n.
+    assert h.source.asked == [
+        ("hokkaido", date(2027, 5, 22 - nights), date(2027, 5, 19), nights)
+        for nights in range(7, 13)
+    ]
+
+
+def test_best_dates_with_a_must_include_date_are_the_cheapest_covering_trip(h: Harness):
+    h.config(HOKKAIDO)
+    h.source.prices = {
+        7: [Fare(date(2027, 5, 19), date(2027, 5, 26), 1100)],
+        12: [Fare(date(2027, 5, 10), date(2027, 5, 22), 950)],
+    }
+
+    h.run()
+
+    report = h.report()
+    assert "950 AUD" in report
+    assert "depart 2027-05-10, return 2027-05-22 (12 nights)" in report
+    assert "Prices found for 2 of 45 date pairs" in report  # 5 + 6 + ... + 10 departures
+
+
+def test_a_travel_window_given_with_a_must_include_date_narrows_it(h: Harness):
+    h.config(HOKKAIDO + "depart_from = 2027-05-12\ndepart_to = 2027-05-18\n")
+
+    h.run()
+
+    assert [(c[1], c[2], c[3]) for c in h.source.asked] == [
+        (date(2027, 5, 15), date(2027, 5, 18), 7),
+        (date(2027, 5, 14), date(2027, 5, 18), 8),
+        (date(2027, 5, 13), date(2027, 5, 18), 9),
+        (date(2027, 5, 12), date(2027, 5, 18), 10),
+        (date(2027, 5, 12), date(2027, 5, 18), 11),
+        (date(2027, 5, 12), date(2027, 5, 18), 12),
+    ]
+
+
+def test_trip_lengths_too_short_to_cover_the_must_include_date_are_skipped(h: Harness):
+    h.config(HOKKAIDO.replace("[7, 12]", "[2, 3]"))
+
+    h.run()
+
+    assert h.source.asked == [("hokkaido", date(2027, 5, 19), date(2027, 5, 19), 3)]
+
+
+def test_a_must_include_watch_expires_once_the_last_covering_departure_has_passed(h: Harness):
+    h.config(HOKKAIDO)
+
+    h.run(datetime(2027, 5, 19, 9, 0))
+
+    assert h.source.calls == []
+    assert "Expired Watch" in h.report("2027-05-19")

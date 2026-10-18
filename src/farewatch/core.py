@@ -35,6 +35,7 @@ class Watch:
     depart_from: date
     depart_to: date
     nights: tuple[int, int] | None = None  # Trip Length range; None means one-way
+    must_include: date | None = None  # Must-Include Date; round trips only
     target_price: float | None = None
     max_stops: int | None = None  # Maximum Stops; None means any
     cabin: str = "economy"
@@ -72,6 +73,15 @@ Push = Callable[[str, str, str], None]
 Sleep = Callable[[float], None]
 
 
+def _covering(must_include: date, nights: int) -> tuple[date, date]:
+    """First and last departure whose trip of this many nights covers the Must-Include Date.
+
+    The day is spent wholly at the destination. Arrival is often the day after leaving, so the
+    outbound leaves two days before it at the latest, and the return the day after at the earliest.
+    """
+    return must_include + timedelta(days=1 - nights), must_include - timedelta(days=2)
+
+
 def _watch(raw: dict[str, object], seen: set[str]) -> Watch:
     name = str(raw.get("name", "(unnamed Watch)"))
 
@@ -82,13 +92,17 @@ def _watch(raw: dict[str, object], seen: set[str]) -> Watch:
     for key in raw:
         if key not in known:
             raise fail(f"unknown setting '{key}'")
-    for key in ("name", "destination", "depart_from", "depart_to"):
+    must_include = raw.get("must_include")
+    required = ["name", "destination"]
+    if must_include is None:  # with a Must-Include Date the Travel Window is worked out
+        required += ["depart_from", "depart_to"]
+    for key in required:
         if key not in raw:
             raise fail(f"{key} is missing")
     if name in seen:
         raise fail("two Watches share this name")
     for key in ("depart_from", "depart_to"):
-        if type(raw[key]) is not date:
+        if key in raw and type(raw[key]) is not date:
             raise fail(f"{key} must be a date like 2027-03-01, without quotes")
     for key in ("origin", "destination"):
         code = raw.get(key, "MEL")
@@ -109,6 +123,17 @@ def _watch(raw: dict[str, object], seen: set[str]) -> Watch:
                 f" the most is {MAX_TRIP_LENGTHS}"
             )
         raw = {**raw, "nights": (nights[0], nights[1])}
+    if must_include is not None:
+        if type(must_include) is not date:
+            raise fail("must_include must be a date like 2027-05-21, without quotes")
+        if nights is None:
+            raise fail("must_include needs nights; it only applies to round trips")
+        if nights[1] < 3:
+            raise fail("nights must reach 3 or more to spend all of must_include there")
+        earliest, latest = _covering(must_include, nights[1])
+        given_from, given_to = raw.get("depart_from", earliest), raw.get("depart_to", latest)
+        assert isinstance(given_from, date) and isinstance(given_to, date)  # checked above
+        raw = {**raw, "depart_from": max(given_from, earliest), "depart_to": min(given_to, latest)}
     excluded = raw.get("exclude_airlines", [])
     if not (
         isinstance(excluded, list)
@@ -123,6 +148,8 @@ def _watch(raw: dict[str, object], seen: set[str]) -> Watch:
     raw = {**raw, "exclude_airlines": tuple(excluded)}
     watch = Watch(**raw)  # type: ignore[arg-type]
     if watch.depart_to < watch.depart_from:
+        if watch.must_include:
+            raise fail("no trip in the Travel Window covers must_include")
         raise fail("depart_to is before depart_from")
     if watch.max_stops not in (None, 0, 1, 2):
         raise fail("max_stops must be 0, 1 or 2")
@@ -228,7 +255,10 @@ def _search(
         return answer
 
     for nights in lengths:
-        for piece in _pieces(start, end):
+        first = start
+        if watch.must_include and nights:  # shorter stays must leave later to cover the date
+            first = max(start, _covering(watch.must_include, nights)[0])
+        for piece in _pieces(first, end):
             found.searches += 1
             days = (piece[1] - piece[0]).days + 1
             found.possible += days
