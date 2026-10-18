@@ -59,6 +59,10 @@ _Avoid_: Runner-ups, other options
 Google's usual low-to-high price for a trip, used to judge whether a Check's price is good, as opposed to merely under a Target Price.
 _Avoid_: Normal price, average fare
 
+**Daily Report**:
+The written result of one day's Checks, listing every Watch with its latest Best Dates and that day's lowest price, whether or not it was a Hit.
+_Avoid_: Summary, digest, log
+
 **Target Price**:
 An optional price a person sets on a Watch; a Check that finds a price at or below it is a Hit even if the price is inside the Typical Range.
 _Avoid_: Threshold, budget

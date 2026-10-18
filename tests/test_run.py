@@ -402,6 +402,14 @@ def test_a_run_refuses_to_start_while_another_is_still_going(h: Harness):
             HOKKAIDO.replace("must_include = 2027-05-21\n", ""),
             "hokkaido: depart_from is missing",
         ),
+        (
+            HOKKAIDO + "depart_from = 2027-05-18\ndepart_to = 2027-05-12\n",
+            "hokkaido: depart_to is before depart_from",
+        ),
+        (
+            HOKKAIDO.replace("2027-05-21", "2027-05-21T10:00:00"),
+            "hokkaido: must_include must be a date like 2027-05-21, without quotes",
+        ),
         ("", "no Watches"),
     ],
 )
@@ -615,3 +623,13 @@ def test_a_must_include_watch_expires_once_the_last_covering_departure_has_passe
 
     assert h.source.calls == []
     assert "Expired Watch" in h.report("2027-05-19")
+
+
+def test_one_travel_window_bound_with_a_must_include_date_narrows_only_that_side(h: Harness):
+    h.config(HOKKAIDO + "depart_to = 2027-05-16\n")
+
+    h.run()
+
+    assert [(c[1], c[2], c[3]) for c in h.source.asked] == [
+        (date(2027, 5, 22 - nights), date(2027, 5, 16), nights) for nights in range(7, 13)
+    ]

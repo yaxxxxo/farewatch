@@ -133,6 +133,8 @@ def _watch(raw: dict[str, object], seen: set[str]) -> Watch:
         earliest, latest = _covering(must_include, nights[1])
         given_from, given_to = raw.get("depart_from", earliest), raw.get("depart_to", latest)
         assert isinstance(given_from, date) and isinstance(given_to, date)  # checked above
+        if given_to < given_from:
+            raise fail("depart_to is before depart_from")
         raw = {**raw, "depart_from": max(given_from, earliest), "depart_to": min(given_to, latest)}
     excluded = raw.get("exclude_airlines", [])
     if not (
