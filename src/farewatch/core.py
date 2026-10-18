@@ -277,9 +277,9 @@ def _search(
         if failed_in_a_row >= GIVE_UP_AFTER:  # blocked or misconfigured: stop asking
             found.failed += 1
             continue
-        trip = f"{nights} nights" if nights else "one way"
+        trip = f"{nights}-night trips" if nights else "one-way trips"
         say(
-            f"{watch.name}: searching {trip}, leaving {piece[0]} to {piece[1]}"
+            f"{watch.name}: searching {trip} leaving any day from {piece[0]} to {piece[1]}"
             f" ({number} of {len(planned)})"
         )
         for attempt in range(RETRIES + 1):
@@ -424,7 +424,7 @@ def run(
             checked, searches = _check(watch, source, push, sleep, say, db, now, currency, topic)
             total += searches
             heading = f"## {watch.name} — {watch.origin} → {watch.destination}"
-            heading += f" · leaving {watch.depart_from} to {watch.depart_to}"
+            heading += f" · leaving any day from {watch.depart_from} to {watch.depart_to}"
             if watch.must_include:
                 heading += f" · must include {watch.must_include}"
             lines += [heading, "", *checked, ""]

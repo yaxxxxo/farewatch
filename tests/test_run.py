@@ -648,9 +648,9 @@ def test_progress_is_reported_before_each_search_and_the_flight_lookup(h: Harnes
     h.run()
 
     assert h.said == [
-        "tokyo: searching 10 nights, leaving 2027-03-01 to 2027-03-05 (1 of 3)",
-        "tokyo: searching 11 nights, leaving 2027-03-01 to 2027-03-05 (2 of 3)",
-        "tokyo: searching 12 nights, leaving 2027-03-01 to 2027-03-05 (3 of 3)",
+        "tokyo: searching 10-night trips leaving any day from 2027-03-01 to 2027-03-05 (1 of 3)",
+        "tokyo: searching 11-night trips leaving any day from 2027-03-01 to 2027-03-05 (2 of 3)",
+        "tokyo: searching 12-night trips leaving any day from 2027-03-01 to 2027-03-05 (3 of 3)",
         "tokyo: looking up the flight for 790 AUD on 2027-03-04",
     ]
 
@@ -662,7 +662,7 @@ def test_progress_says_when_a_failed_search_is_tried_again(h: Harness):
     h.run()
 
     assert h.said == [
-        "tokyo: searching one way, leaving 2027-03-01 to 2027-03-05 (1 of 1)",
+        "tokyo: searching one-way trips leaving any day from 2027-03-01 to 2027-03-05 (1 of 1)",
         "tokyo: no answer; trying again in 5s",
     ]
 
@@ -681,8 +681,8 @@ def test_each_watch_heading_gives_its_travel_dates(h: Harness):
     h.run()
 
     report = h.report()
-    assert "## tokyo — SFO → NRT · leaving 2027-03-01 to 2027-03-05\n" in report
+    assert "## tokyo — SFO → NRT · leaving any day from 2027-03-01 to 2027-03-05\n" in report
     assert (
-        "## hokkaido — MEL → CTS · leaving 2027-05-10 to 2027-05-19 · must include 2027-05-21\n"
-        in report
+        "## hokkaido — MEL → CTS · leaving any day from 2027-05-10 to 2027-05-19"
+        " · must include 2027-05-21\n" in report
     )
