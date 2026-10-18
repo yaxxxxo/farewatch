@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from datetime import date
 
+import pytest
+from fli.search.client import Client
+
 from farewatch import Fare
 from farewatch.fli_source import calendar_fares
 
@@ -37,3 +40,22 @@ def test_a_one_way_calendar_has_no_return_date():
 
 def test_a_response_with_nothing_readable_is_a_failed_search():
     assert calendar_fares(")]}'\n\n", round_trip=True) is None
+
+
+def test_a_request_to_google_gives_up_after_ten_seconds_and_is_not_retried_inside_fli(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    timeouts = []
+
+    class StuckSession:
+        def post(self, url: str, **kwargs: object) -> None:
+            timeouts.append(kwargs["timeout"])
+            raise TimeoutError("no answer")
+
+    client = Client()
+    monkeypatch.setattr(client, "_session", StuckSession)
+
+    with pytest.raises(Exception, match="TimeoutError"):
+        client.post(url="https://www.google.com/")
+
+    assert timeouts == [10]  # one attempt; farewatch's own retries say what they're doing

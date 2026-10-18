@@ -337,8 +337,11 @@ def _check(
             sleep(RETRY_PAUSE_SECONDS if attempt else PAUSE_SECONDS)
             try:
                 directions = source.directions(watch, best, currency)
-            except Exception:  # the flight lookup is a nicety; dates and price stand without it
-                pass
+            except Exception as error:  # a nicety: dates and price stand without it
+                # An error is usually a timeout; retrying it would only make the run wait longer.
+                why = f"{type(error).__name__}: {error}"
+                say(f"{watch.name}: flight lookup failed ({why}); skipping it")
+                break
             if directions:
                 break
         details = ([_flight(directions)] if directions else []) + [_link(watch, best)]

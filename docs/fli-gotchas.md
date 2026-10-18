@@ -25,7 +25,8 @@ What the Fli library (`flights` on PyPI, imported as `fli`) does that its signat
 
 ## Everything else
 
-- **Fli rate-limits itself** to 10 requests a second and retries each HTTP call. farewatch's own one-second pause sits on top.
+- **Fli rate-limits itself** to 10 requests a second. farewatch's own one-second pause sits on top.
+- **Fli waits 60 seconds for an answer and silently retries each HTTP call twice more** (`client.py`: `DEFAULT_TIMEOUT`, `@retry(stop_after_attempt(3), wait_exponential())`). Healthy answers take under a second, so one stuck request could hold a run for minutes with nothing on screen. `fli_source.py` sets `REQUEST_TIMEOUT` to 10 seconds and replaces `Client.post` with its unwrapped `__wrapped__`, so each call is one attempt and farewatch's own retries (which say what they are doing) are the only ones. A Fli upgrade that renames either needs checking.
 - **An unknown airport code raises `ParseError`** inside the search, not when the filter is built.
 - **Currency is a `currency=` argument to `search()`**, not part of the filters.
 - **The `fli dates` command crashes in text mode** (`plotext` has no `clear_figure`). Use `--format json` when checking something by hand.

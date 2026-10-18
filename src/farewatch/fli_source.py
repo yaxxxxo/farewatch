@@ -15,10 +15,18 @@ from fli.models import (
     SortBy,
 )
 from fli.search import SearchDates, SearchFlights
+from fli.search import client as fli_client
 from fli.search._urls import with_locale_params
 from fli.search._wire import iter_wrb_chunks
 
 from farewatch.core import Direction, Fare, Watch
+
+# Healthy answers take under a second; Fli would wait 60s and then retry twice more on its own,
+# silently, so one stuck request could hold a run for minutes. farewatch retries for itself and
+# says so (see docs/fli-gotchas.md).
+REQUEST_TIMEOUT_SECONDS = 10
+fli_client.REQUEST_TIMEOUT = REQUEST_TIMEOUT_SECONDS
+fli_client.Client.post = fli_client.Client.post.__wrapped__
 
 _STOPS = {
     None: MaxStops.ANY,

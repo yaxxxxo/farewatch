@@ -21,6 +21,7 @@ class FakeSource:
         self.itinerary: list[Direction] | None = None
         self.during_search = lambda: None
         self.lookup_failures = 0
+        self.lookups = 0
         self.watches: list = []
 
     @property
@@ -40,6 +41,7 @@ class FakeSource:
         return [f for f in self.prices.get(nights, []) if depart_from <= f.depart <= depart_to]
 
     def directions(self, watch, fare, currency):
+        self.lookups += 1
         if self.lookup_failures:
             self.lookup_failures -= 1
             return None
@@ -686,3 +688,14 @@ def test_each_watch_heading_gives_its_travel_dates(h: Harness):
         "## hokkaido — MEL → CTS · leaving any day from 2027-05-10 to 2027-05-19"
         " · must include 2027-05-21\n" in report
     )
+
+
+def test_a_flight_lookup_that_errors_is_skipped_rather_than_retried(h: Harness):
+    h.config(ONE_WAY)
+    one_way_at(h, 512)  # no itinerary set, so the lookup raises
+
+    h.run()
+
+    assert h.source.lookups == 1
+    assert "tokyo: flight lookup failed (ConnectionError: blocked); skipping it" in h.said
+    assert "512 AUD" in h.report()
