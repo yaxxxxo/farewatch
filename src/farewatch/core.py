@@ -69,6 +69,10 @@ class FlightSource(Protocol):
 
     def directions(self, watch: Watch, fare: Fare, currency: str) -> list[Direction] | None: ...
 
+    def typical_range(self, watch: Watch, fare: Fare, currency: str) -> tuple[float, float] | None:
+        """Google's Typical Range (low, high) for this fare's dates, or None if it gives none."""
+        ...
+
 
 Push = Callable[[str, str, str], None]
 Sleep = Callable[[float], None]
@@ -211,7 +215,7 @@ def _same_price(best: Fare, ties: list[Fare]) -> str:
     return text + "."
 
 
-def _link(watch: Watch, fare: Fare) -> str:
+def flights_link(watch: Watch, fare: Fare) -> str:
     when = f"through {fare.ret}" if fare.ret else "one way"
     query = f"Flights from {watch.origin} to {watch.destination} on {fare.depart} {when}"
     return "https://www.google.com/travel/flights?q=" + urllib.parse.quote(query)
@@ -369,14 +373,46 @@ def _check(
                 return directions
         return None
 
+    def typical_range(fare: Fare) -> tuple[float, float] | None:
+        nonlocal searches
+        searches += 1
+        say(f"{watch.name}: checking Google's Typical Range for these dates")
+        sleep(PAUSE_SECONDS)
+        try:
+            return source.typical_range(watch, fare, currency)
+        except Exception as error:  # the verdict is a nicety; the Target Price still decides
+            say(f"{watch.name}: Typical Range unavailable ({type(error).__name__}: {error})")
+            return None
+
     if fares:
         ranked = sorted(fares, key=lambda f: (f.price, f.depart, f.ret or f.depart))
         best = ranked[0]
         money = f"{best.price:,.0f} {currency}"
         dates = describe(best)
         directions = look_up(best)
-        details = ([_flight(directions)] if directions else []) + [_link(watch, best)]
-        hit = watch.target_price is not None and best.price <= watch.target_price
+        typical = typical_range(best)
+        if typical:
+            low, high = typical
+            word = "low" if best.price < low else "high" if best.price > high else "typical"
+            verdict = (
+                f"Typical Range for these dates: {low:,.0f}–{high:,.0f} {currency};"
+                f" this price is {word}."
+            )
+        else:
+            verdict = "Typical Range not available for these dates."
+        details = [_flight(directions)] if directions else []
+        details.append(verdict)
+        earlier = db.execute(
+            "SELECT MIN(price), MIN(checked_at) FROM price_records"
+            " WHERE settings = ? AND checked_at < ?",
+            (settings, f"{now:%Y-%m-%d}"),
+        ).fetchone()
+        if earlier[0] is not None:
+            lowest = min(earlier[0], best.price)
+            details.append(f"Lowest since {earlier[1][:10]}: {lowest:,.0f} {currency}")
+        details.append(flights_link(watch, best))
+        below = typical is not None and best.price < typical[0]
+        hit = below or (watch.target_price is not None and best.price <= watch.target_price)
         pushed = push_failed = False
         if hit and topic and _beats_last_push(db, settings, best.price):
             body = "\n".join([f"{watch.origin} → {watch.destination}, {dates}", *details])
@@ -400,7 +436,11 @@ def _check(
                     settings,
                 ),
             )
-        status = f" · HIT (target {watch.target_price:,.0f} {currency})" if hit else ""
+        status = ""
+        if below:
+            status = " · HIT (below the Typical Range)"
+        elif hit:
+            status = f" · HIT (target {watch.target_price:,.0f} {currency})"
         lines += [f"**{money}** · {dates}{status}", ""]
         for detail in details:
             lines += [detail, ""]

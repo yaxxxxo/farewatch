@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import date
 
 from fli.core import parse_airlines, resolve_airport
@@ -19,7 +21,7 @@ from fli.search import client as fli_client
 from fli.search._urls import with_locale_params
 from fli.search._wire import iter_wrb_chunks
 
-from farewatch.core import Direction, Fare, Watch
+from farewatch.core import Direction, Fare, Watch, flights_link
 
 # Healthy answers take under a second; Fli would wait 60s and then retry twice more on its own,
 # silently, so one stuck request could hold a run for minutes. farewatch retries for itself and
@@ -56,6 +58,23 @@ def calendar_fares(body: str, round_trip: bool) -> list[Fare] | None:
             except (TypeError, ValueError, IndexError):
                 continue  # a metadata row, or a date Google has no price for
     return fares
+
+
+_PAGE_DATA = re.compile(r"AF_initDataCallback\(\{key: 'ds:1'.*?data:(.*?), sideChannel", re.S)
+
+
+def typical_range_from_page(html: str) -> tuple[float, float] | None:
+    """Google's Typical Range from a search page's inline data, or None when it has none.
+
+    It sits at ds:1[5] as [level, [None, cheapest], _, _, [None, low], [None, high], ...]. The
+    API Fli calls does not carry it, so farewatch loads the page a person would see.
+    """
+    match = _PAGE_DATA.search(html)
+    try:
+        insight = json.loads(match.group(1))[5]  # type: ignore[union-attr]
+        return float(insight[4][1]), float(insight[5][1])
+    except (AttributeError, ValueError, TypeError, IndexError):
+        return None
 
 
 class FliSource:
@@ -117,3 +136,8 @@ class FliSource:
             Direction(d.primary_airline_name or d.legs[0].airline.value, d.stops, d.duration)
             for d in directions
         ]
+
+    def typical_range(self, watch: Watch, fare: Fare, currency: str) -> tuple[float, float] | None:
+        url = f"{flights_link(watch, fare)}&curr={currency}&hl=en"
+        response = SearchFlights().client.get(url, impersonate="chrome", allow_redirects=True)
+        return typical_range_from_page(response.text)

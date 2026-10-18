@@ -7,7 +7,7 @@ import pytest
 from fli.search.client import Client
 
 from farewatch import Fare
-from farewatch.fli_source import calendar_fares
+from farewatch.fli_source import calendar_fares, typical_range_from_page
 
 
 def wire(*inner_payloads: object) -> str:
@@ -59,3 +59,21 @@ def test_a_request_to_google_gives_up_after_ten_seconds_and_is_not_retried_insid
         client.post(url="https://www.google.com/")
 
     assert timeouts == [10]  # one attempt; farewatch's own retries say what they're doing
+
+
+def page(insight: object) -> str:
+    """A Google Flights search page, which carries its results as inline script data."""
+    data = json.dumps([None, None, None, None, None, insight])
+    script = f"AF_initDataCallback({{key: 'ds:1', hash: '9', data:{data}, sideChannel: {{}}}});"
+    return f"<script>{script}</script>"
+
+
+def test_the_typical_range_is_read_from_the_search_page():
+    insight = [2, [None, 1251], [None, 1339], [None, 88], [None, 1100], [None, 1750], 1]
+
+    assert typical_range_from_page(page(insight)) == (1100, 1750)
+
+
+def test_a_page_without_a_typical_range_gives_none():
+    assert typical_range_from_page(page(None)) is None
+    assert typical_range_from_page("<html>consent</html>") is None

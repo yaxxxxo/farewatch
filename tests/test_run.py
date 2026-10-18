@@ -22,6 +22,8 @@ class FakeSource:
         self.during_search = lambda: None
         self.lookup_failures = 0
         self.lookups = 0
+        self.typical: tuple[float, float] | None = None  # Typical Range for whatever is asked
+        self.typical_asked: list[Fare] = []
         self.watches: list = []
 
     @property
@@ -39,6 +41,10 @@ class FakeSource:
         if nights in self.broken:
             raise ConnectionError("blocked")
         return [f for f in self.prices.get(nights, []) if depart_from <= f.depart <= depart_to]
+
+    def typical_range(self, watch, fare, currency):
+        self.typical_asked.append(fare)
+        return self.typical
 
     def directions(self, watch, fare, currency):
         self.lookups += 1
@@ -318,9 +324,9 @@ def test_run_reports_how_many_searches_it_made(h: Harness):
     h.source.prices[None] = [Fare(date(2027, 3, 1), None, 512)]
     h.source.itinerary = [Direction("ANA", 0, 600)]
 
-    # three Trip Lengths and a flight lookup (every price ties, so no Alternatives), then one
-    # one-way search and its flight lookup
-    assert h.run() == (3 + 1) + (1 + 1)
+    # three Trip Lengths, a flight lookup and the Typical Range (every price ties, so no
+    # Alternatives), then one one-way search, its flight lookup and its Typical Range
+    assert h.run() == (3 + 1 + 1) + (1 + 1 + 1)
 
 
 def test_a_run_refuses_to_start_while_another_is_still_going(h: Harness):
@@ -655,6 +661,7 @@ def test_progress_is_reported_before_each_search_and_the_flight_lookup(h: Harnes
         "tokyo: searching 11-night trips leaving any day from 2027-03-01 to 2027-03-05 (2 of 3)",
         "tokyo: searching 12-night trips leaving any day from 2027-03-01 to 2027-03-05 (3 of 3)",
         "tokyo: looking up the flight for 790 AUD on 2027-03-04",
+        "tokyo: checking Google's Typical Range for these dates",
     ]
 
 
@@ -789,3 +796,72 @@ def test_a_single_other_one_way_date_at_the_best_price_is_summarised(h: Harness)
         "Same price on 1 other date, leaving any day from 2027-03-03 to 2027-03-05." in h.report()
     )
     assert "Alternatives" not in h.report()
+
+
+def test_a_price_below_the_typical_range_is_a_hit_without_a_target(h: Harness):
+    h.config(TOPIC + ONE_WAY)
+    one_way_at(h, 512)
+    h.source.typical = (600, 900)
+
+    h.run()
+
+    verdict = "Typical Range for these dates: 600–900 AUD; this price is low."
+    [(_, title, body)] = h.pushes
+    assert "512 AUD" in title
+    assert verdict in body
+    assert verdict in h.report()
+    assert "HIT (below the Typical Range)" in h.report()
+    assert h.source.typical_asked == [Fare(date(2027, 3, 3), None, 512)]  # the Best Dates only
+
+
+@pytest.mark.parametrize(("typical", "word"), [((400, 900), "typical"), ((300, 500), "high")])
+def test_a_price_not_below_the_typical_range_is_no_hit_without_a_target(
+    h: Harness, typical: tuple[float, float], word: str
+):
+    h.config(TOPIC + ONE_WAY)
+    one_way_at(h, 512)
+    h.source.typical = typical
+
+    h.run()
+
+    assert h.pushes == []
+    assert f"this price is {word}." in h.report()
+    assert "HIT" not in h.report()
+
+
+def test_a_target_price_still_makes_a_hit_inside_the_typical_range(h: Harness):
+    h.config(TOPIC + ONE_WAY + "target_price = 600\n")
+    one_way_at(h, 512)
+    h.source.typical = (400, 900)
+
+    h.run()
+
+    assert len(h.pushes) == 1
+    assert "HIT (target 600 AUD)" in h.report()
+
+
+def test_without_a_typical_range_only_the_target_decides(h: Harness):
+    h.config(TOPIC + ONE_WAY)
+    one_way_at(h, 512)
+
+    h.run()
+
+    assert h.pushes == []
+    assert "Typical Range not available for these dates." in h.report()
+
+
+def test_report_and_push_give_the_lowest_price_since_watching_began(h: Harness):
+    h.config(TOPIC + ONE_WAY)
+    h.source.typical = (600, 900)
+    one_way_at(h, 512)
+    h.run()
+    one_way_at(h, 530)
+    h.run(datetime(2026, 10, 11, 9, 0))
+    one_way_at(h, 500)
+
+    h.run(datetime(2026, 10, 12, 9, 0))
+
+    assert "Lowest since" not in h.report()  # nothing to compare on the first day
+    assert "Lowest since 2026-10-10: 512 AUD" in h.report("2026-10-11")
+    assert "Lowest since 2026-10-10: 500 AUD" in h.report("2026-10-12")
+    assert "Lowest since 2026-10-10: 500 AUD" in h.pushes[-1][2]

@@ -23,6 +23,12 @@ What the Fli library (`flights` on PyPI, imported as `fli`) does that its signat
 - **`FlightResult.legs` are single flights**, so a result with one stop has two legs. farewatch's `Direction` is a whole result, not a leg.
 - **The price can differ from the date search's price** for the same dates.
 
+## Typical Range (not in Fli)
+
+- **Only the search page carries it.** Neither the calendar nor the flight search response has it (both checked 2026-10-18; Fli `main` reads it from a page fetch that 0.9.0 lacks). The HTML at `https://www.google.com/travel/flights?q=Flights from X to Y on D through R&curr=AUD` has inline `AF_initDataCallback({key: 'ds:1', ...})` data, and `ds:1[5]` is `[level, [None, cheapest], ?, ?, [None, typical_low], [None, typical_high], ...]`. Level `1` was seen below the range and `2` inside it. `ds:1[5][10][0]` is about 60 daily `[epoch_ms, price]` points of price history, unused so far.
+- **It is per date pair, and ignores filters.** Different dates on one route gave different ranges. The `q=` URL carries no stops, duration or airline filters, so the range and its "cheapest" cover every flight.
+- **About 1 second and 2 MB per page.** farewatch fetches it once per Check, for the Best Dates.
+
 ## Everything else
 
 - **Fli rate-limits itself** to 10 requests a second. farewatch's own one-second pause sits on top.

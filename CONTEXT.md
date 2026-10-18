@@ -56,7 +56,7 @@ The next cheapest prices above the Best Dates' price that a Check found, one opt
 _Avoid_: Runner-ups, other options
 
 **Typical Range**:
-Google's usual low-to-high price for a trip, used to judge whether a Check's price is good, as opposed to merely under a Target Price.
+Google's usual low-to-high price for one trip's dates, used to judge whether a Check's price is low, typical or high, as opposed to merely under a Target Price. It covers every flight on those dates, not only those within a Watch's Maximum Stops, Maximum Travel Time and Excluded Airlines, so it runs somewhat lower than what the Watch can buy.
 _Avoid_: Normal price, average fare
 
 **Daily Report**:
