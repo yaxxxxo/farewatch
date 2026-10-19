@@ -31,3 +31,6 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+filterwarnings = ["error"]  # a deprecation today is a crash on the next Python

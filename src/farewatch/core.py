@@ -233,12 +233,13 @@ def _open_store(home: Path) -> sqlite3.Connection:
 def _beats_last_push(db: sqlite3.Connection, settings: str, price: float) -> bool:
     """True unless a Push at this price or lower already went out in the current run of Hits.
 
-    The run of Hits ends when a Check finds the price back over target, or the Watch is edited.
+    The run of Hits ends when a Check is no longer a Hit, or the Watch is edited.
     """
     (lowest,) = db.execute(
-        "SELECT MIN(price) FROM price_records WHERE settings = ?1 AND pushed AND rowid > COALESCE("
-        "(SELECT MAX(rowid) FROM price_records WHERE settings = ?1 AND NOT hit), 0)",
-        (settings,),
+        "SELECT MIN(price) FROM price_records WHERE settings = :settings AND pushed"
+        " AND rowid > COALESCE("
+        "(SELECT MAX(rowid) FROM price_records WHERE settings = :settings AND NOT hit), 0)",
+        {"settings": settings},
     ).fetchone()
     return lowest is None or price < lowest
 
